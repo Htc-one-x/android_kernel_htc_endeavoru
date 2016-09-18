@@ -70,13 +70,13 @@ struct aa_ext {
 static void audit_cb(struct audit_buffer *ab, void *va)
 {
 	struct common_audit_data *sa = va;
-	if (sa->aad.iface.target) {
-		struct aa_profile *name = sa->aad.iface.target;
+	if (sa->aad->iface.target) {
+		struct aa_profile *name = sa->aad->iface.target;
 		audit_log_format(ab, " name=");
 		audit_log_untrustedstring(ab, name->base.hname);
 	}
-	if (sa->aad.iface.pos)
-		audit_log_format(ab, " offset=%ld", sa->aad.iface.pos);
+	if (sa->aad->iface.pos)
+		audit_log_format(ab, " offset=%ld", sa->aad->iface.pos);
 }
 
 /**
