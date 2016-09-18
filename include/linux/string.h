@@ -3,9 +3,6 @@
 
 /* We don't want strings.h stuff being used by user stuff by accident */
 
-#ifndef __KERNEL__
-#include <string.h>
-#else
 
 #include <linux/compiler.h>	/* for inline */
 #include <linux/types.h>	/* for size_t */
