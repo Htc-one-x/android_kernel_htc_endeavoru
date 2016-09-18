@@ -141,4 +141,4 @@ static inline bool strstarts(const char *str, const char *prefix)
 	return strncmp(str, prefix, strlen(prefix)) == 0;
 }
 #endif
-#endif /* _LINUX_STRING_H_ */
+
