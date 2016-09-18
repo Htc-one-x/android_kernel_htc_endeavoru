@@ -2869,8 +2869,25 @@ static int selinux_inode_setxattr(struct dentry *dentry, const char *name,
 
 	rc = security_context_to_sid(value, size, &newsid);
 	if (rc == -EINVAL) {
-		if (!capable(CAP_MAC_ADMIN))
+		if (!capable(CAP_MAC_ADMIN)) {
+			struct audit_buffer *ab;
+			size_t audit_size;
+			const char *str;
+
+			/* We strip a nul only if it is at the end, otherwise the
+			 * context contains a nul and we should audit that */
+			str = value;
+			if (str[size - 1] == '\0')
+				audit_size = size - 1;
+			else
+				audit_size = size;
+			ab = audit_log_start(current->audit_context, GFP_ATOMIC, AUDIT_SELINUX_ERR);
+			audit_log_format(ab, "op=setxattr invalid_context=");
+			audit_log_n_untrustedstring(ab, value, audit_size);
+			audit_log_end(ab);
+
 			return rc;
+		}
 		rc = security_context_to_sid_force(value, size, &newsid);
 	}
 	if (rc)
@@ -3050,7 +3067,7 @@ static int selinux_file_permission(struct file *file, int mask)
 
 	if (sid == fsec->sid && fsec->isid == isec->sid &&
 	    fsec->pseqno == avc_policy_seqno())
-		/* No change since dentry_open check. */
+		/* No change since file_open check. */
 		return 0;
 
 	return selinux_revalidate_file_permission(file, mask);
@@ -3309,7 +3326,7 @@ static int selinux_file_receive(struct file *file)
 	return file_has_perm(cred, file, file_to_av(file));
 }
 
-static int selinux_dentry_open(struct file *file, const struct cred *cred)
+static int selinux_file_open(struct file *file, const struct cred *cred)
 {
 	struct file_security_struct *fsec;
 	struct inode *inode;
@@ -5412,8 +5429,23 @@ static int selinux_setprocattr(struct task_struct *p,
 		}
 		error = security_context_to_sid(value, size, &sid);
 		if (error == -EINVAL && !strcmp(name, "fscreate")) {
-			if (!capable(CAP_MAC_ADMIN))
+			if (!capable(CAP_MAC_ADMIN)) {
+				struct audit_buffer *ab;
+				size_t audit_size;
+
+				/* We strip a nul only if it is at the end, otherwise the
+				 * context contains a nul and we should audit that */
+				if (str[size - 1] == '\0')
+					audit_size = size - 1;
+				else
+					audit_size = size;
+				ab = audit_log_start(current->audit_context, GFP_ATOMIC, AUDIT_SELINUX_ERR);
+				audit_log_format(ab, "op=fscreate invalid_context=");
+				audit_log_n_untrustedstring(ab, value, audit_size);
+				audit_log_end(ab);
+
 				return error;
+			}
 			error = security_context_to_sid_force(value, size,
 							      &sid);
 		}
@@ -5678,7 +5710,7 @@ static struct security_operations selinux_ops = {
 	.file_send_sigiotask =		selinux_file_send_sigiotask,
 	.file_receive =			selinux_file_receive,
 
-	.dentry_open =			selinux_dentry_open,
+	.file_open =			selinux_file_open,
 
 	.task_create =			selinux_task_create,
 	.cred_alloc_blank =		selinux_cred_alloc_blank,
