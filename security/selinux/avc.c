@@ -460,7 +460,7 @@ static void avc_audit_post_callback(struct audit_buffer *ab, void *a)
 /* This is the slow part of avc audit with big stack footprint */
 static noinline int slow_avc_audit(u32 ssid, u32 tsid, u16 tclass,
 		u32 requested, u32 audited, u32 denied,
-		struct av_decision *avd, struct common_audit_data *a,
+		struct common_audit_data *a,
 		unsigned flags)
 {
 	struct common_audit_data stack_data;
@@ -513,7 +513,7 @@ static noinline int slow_avc_audit(u32 ssid, u32 tsid, u16 tclass,
  * be performed under a lock, to allow the lock to be released
  * before calling the auditing code.
  */
-int avc_audit(u32 ssid, u32 tsid,
+inline int avc_audit(u32 ssid, u32 tsid,
 	       u16 tclass, u32 requested,
 	       struct av_decision *avd, int result, struct common_audit_data *a,
 	       unsigned flags)
@@ -551,7 +551,7 @@ int avc_audit(u32 ssid, u32 tsid,
 
 	return slow_avc_audit(ssid, tsid, tclass,
 		requested, audited, denied,
-		avd, a, flags);
+		a, flags);
 }
 
 /**
@@ -796,7 +796,7 @@ static noinline int avc_denied(u32 ssid, u32 tsid,
  * auditing, e.g. in cases where a lock must be held for the check but
  * should be released for the auditing.
  */
-int avc_has_perm_noaudit(u32 ssid, u32 tsid,
+inline int avc_has_perm_noaudit(u32 ssid, u32 tsid,
 			 u16 tclass, u32 requested,
 			 unsigned flags,
 			 struct av_decision *avd)
