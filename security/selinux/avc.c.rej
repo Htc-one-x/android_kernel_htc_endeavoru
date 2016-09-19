@@ -1,0 +1,139 @@
+--- security/selinux/avc.c
++++ security/selinux/avc.c
+@@ -672,20 +370,18 @@
+  * results in a bigger stack frame.
+  */
+ static noinline struct avc_node *avc_compute_av(u32 ssid, u32 tsid,
+-			 u16 tclass, struct av_decision *avd,
+-			 struct avc_xperms_node *xp_node)
++			 u16 tclass, struct av_decision *avd)
+ {
+ 	rcu_read_unlock();
+-	INIT_LIST_HEAD(&xp_node->xpd_head);
+-	security_compute_av(ssid, tsid, tclass, avd, &xp_node->xp);
++	security_compute_av(ssid, tsid, tclass, avd);
+ 	rcu_read_lock();
+-	return avc_insert(ssid, tsid, tclass, avd, xp_node);
++	return avc_insert(ssid, tsid, tclass, avd);
+ }
+ 
+ static noinline int avc_denied(u32 ssid, u32 tsid,
+-				u16 tclass, u32 requested,
+-				u8 driver, u8 xperm, unsigned flags,
+-				struct av_decision *avd)
++			 u16 tclass, u32 requested,
++			 unsigned flags,
++			 struct av_decision *avd)
+ {
+ 	if (flags & AVC_STRICT)
+ 		return -EACCES;
+@@ -693,91 +389,11 @@
+ 	if (selinux_enforcing && !(avd->flags & AVD_FLAGS_PERMISSIVE))
+ 		return -EACCES;
+ 
+-	avc_update_node(AVC_CALLBACK_GRANT, requested, driver, xperm, ssid,
+-				tsid, tclass, avd->seqno, NULL, flags);
++	avc_update_node(AVC_CALLBACK_GRANT, requested, ssid,
++				tsid, tclass, avd->seqno);
+ 	return 0;
+ }
+ 
+-/*
+- * The avc extended permissions logic adds an additional 256 bits of
+- * permissions to an avc node when extended permissions for that node are
+- * specified in the avtab. If the additional 256 permissions is not adequate,
+- * as-is the case with ioctls, then multiple may be chained together and the
+- * driver field is used to specify which set contains the permission.
+- */
+-int avc_has_extended_perms(u32 ssid, u32 tsid, u16 tclass, u32 requested,
+-			u8 driver, u8 xperm, struct common_audit_data *ad)
+-{
+-	struct avc_node *node;
+-	struct av_decision avd;
+-	u32 denied;
+-	struct extended_perms_decision local_xpd;
+-	struct extended_perms_decision *xpd = NULL;
+-	struct extended_perms_data allowed;
+-	struct extended_perms_data auditallow;
+-	struct extended_perms_data dontaudit;
+-	struct avc_xperms_node local_xp_node;
+-	struct avc_xperms_node *xp_node;
+-	int rc = 0, rc2;
+-
+-	xp_node = &local_xp_node;
+-	BUG_ON(!requested);
+-
+-	rcu_read_lock();
+-
+-	node = avc_lookup(ssid, tsid, tclass);
+-	if (unlikely(!node)) {
+-		node = avc_compute_av(ssid, tsid, tclass, &avd, xp_node);
+-	} else {
+-		memcpy(&avd, &node->ae.avd, sizeof(avd));
+-		xp_node = node->ae.xp_node;
+-	}
+-	/* if extended permissions are not defined, only consider av_decision */
+-	if (!xp_node || !xp_node->xp.len)
+-		goto decision;
+-
+-	local_xpd.allowed = &allowed;
+-	local_xpd.auditallow = &auditallow;
+-	local_xpd.dontaudit = &dontaudit;
+-
+-	xpd = avc_xperms_decision_lookup(driver, xp_node);
+-	if (unlikely(!xpd)) {
+-		/*
+-		 * Compute the extended_perms_decision only if the driver
+-		 * is flagged
+-		 */
+-		if (!security_xperm_test(xp_node->xp.drivers.p, driver)) {
+-			avd.allowed &= ~requested;
+-			goto decision;
+-		}
+-		rcu_read_unlock();
+-		security_compute_xperms_decision(ssid, tsid, tclass, driver,
+-						&local_xpd);
+-		rcu_read_lock();
+-		avc_update_node(AVC_CALLBACK_ADD_XPERMS, requested, driver, xperm,
+-				ssid, tsid, tclass, avd.seqno, &local_xpd, 0);
+-	} else {
+-		avc_quick_copy_xperms_decision(xperm, &local_xpd, xpd);
+-	}
+-	xpd = &local_xpd;
+-
+-	if (!avc_xperms_has_perm(xpd, xperm, XPERMS_ALLOWED))
+-		avd.allowed &= ~requested;
+-
+-decision:
+-	denied = requested & ~(avd.allowed);
+-	if (unlikely(denied))
+-		rc = avc_denied(ssid, tsid, tclass, requested, driver, xperm,
+-				AVC_EXTENDED_PERMS, &avd);
+-
+-	rcu_read_unlock();
+-
+-	rc2 = avc_xperms_audit(ssid, tsid, tclass, requested,
+-			&avd, xpd, xperm, rc, ad);
+-	if (rc2)
+-		return rc2;
+-	return rc;
+-}
+ 
+ /**
+  * avc_has_perm_noaudit - Check permissions but perform no auditing.
+@@ -814,13 +429,13 @@
+ 
+ 	node = avc_lookup(ssid, tsid, tclass);
+ 	if (unlikely(!node))
+-		node = avc_compute_av(ssid, tsid, tclass, avd, &xp_node);
++		node = avc_compute_av(ssid, tsid, tclass, avd);
+ 	else
+ 		memcpy(avd, &node->ae.avd, sizeof(*avd));
+ 
+ 	denied = requested & ~(avd->allowed);
+ 	if (unlikely(denied))
+-		rc = avc_denied(ssid, tsid, tclass, requested, 0, 0, flags, avd);
++		rc = avc_denied(ssid, tsid, tclass, requested, flags, avd);
+ 
+ 	rcu_read_unlock();
+ 	return rc;
